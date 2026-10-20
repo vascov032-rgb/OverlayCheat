@@ -10,11 +10,13 @@
 #include <dirent.h>
 #include <sys/uio.h>
 #include <pthread.h>
+#include <GLES2/gl2.h>
 
 #define LOG_TAG "FF_OVERLAY"
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
 
 uintptr_t g_view_matrix = 0;
+bool g_running = true;
 
 extern "C" ssize_t process_vm_readv(pid_t pid, const struct iovec *local_iov, unsigned long liovcnt, const struct iovec *remote_iov, unsigned long riovcnt, unsigned long flags);
 
@@ -65,18 +67,13 @@ bool IsValidMatrix(float* m) {
     if (std::abs(m[3]) > 0.05f || std::abs(m[7]) > 0.05f || std::abs(m[11]) > 0.05f) return false;
     if (std::abs(m[15] - 1.0f) > 0.05f) return false;
     if (std::abs(m[14]) < 0.5f) return false;
-    float x = m[12], y = m[13], z = m[14];
-    if (std::isnan(x) || std::isinf(x) || std::isnan(y) || std::isinf(y) || std::isnan(z) || std::isinf(z)) return false;
-    if (std::abs(x) > 50000.0f || std::abs(y) > 50000.0f || std::abs(z) > 50000.0f) return false;
     return true;
 }
 
 void* ScannerThread(void*) {
-    LOGI("Aguardando Free Fire abrir...");
-    while (true) {
+    while (g_running) {
         int pid = get_pid("com.dts.freefireth");
         if (pid != -1) {
-            LOGI("FF aberto! PID: %d", pid);
             std::ifstream maps("/proc/" + std::to_string(pid) + "/maps");
             std::string line;
             while (std::getline(maps, line)) {
@@ -97,7 +94,7 @@ void* ScannerThread(void*) {
                 }
             }
             found:
-            usleep(5000000);
+            sleep(3);
         }
         sleep(1);
     }
@@ -106,11 +103,13 @@ void* ScannerThread(void*) {
 
 extern "C" JNIEXPORT void JNICALL
 Java_com_cheat_overlay_OverlayService_StartCheat(JNIEnv*, jobject) {
+    LOGI("Iniciando Engine C++...");
+    g_running = true;
     pthread_t thread;
     pthread_create(&thread, nullptr, ScannerThread, nullptr);
 }
 
 extern "C" JNIEXPORT void JNICALL
 Java_com_cheat_overlay_OverlayService_StopCheat(JNIEnv*, jobject) {
-    exit(0);
+    g_running = false;
 }
