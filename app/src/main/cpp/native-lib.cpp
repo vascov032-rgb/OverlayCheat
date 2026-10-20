@@ -14,13 +14,14 @@
 
 #define LOG_TAG "FF_OVERLAY"
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
+#define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
 
 uintptr_t g_view_matrix = 0;
 bool g_running = true;
 
 extern "C" ssize_t process_vm_readv(pid_t pid, const struct iovec *local_iov, unsigned long liovcnt, const struct iovec *remote_iov, unsigned long riovcnt, unsigned long flags);
 
-int get_pid(const char* package_name) {
+int get_pid() {
     DIR* dir = opendir("/proc");
     if (!dir) return -1;
     struct dirent* entry;
@@ -37,7 +38,8 @@ int get_pid(const char* package_name) {
                 if (f) {
                     std::string line;
                     std::getline(f, line);
-                    if (line.find(package_name) != std::string::npos) {
+                    if (line.find("com.dts.freefireth") != std::string::npos || 
+                        line.find("com.dts.freefiremax") != std::string::npos) {
                         closedir(dir);
                         return atoi(entry->d_name);
                     }
@@ -52,7 +54,8 @@ int get_pid(const char* package_name) {
 bool ReadMem(int pid, uintptr_t addr, void* buffer, size_t size) {
     struct iovec local{ buffer, size };
     struct iovec remote{ (void*)addr, size };
-    return process_vm_readv(pid, &local, 1, &remote, 1, 0) == size;
+    ssize_t n = process_vm_readv(pid, &local, 1, &remote, 1, 0);
+    return n == size;
 }
 
 bool IsValidMatrix(float* m) {
@@ -71,11 +74,20 @@ bool IsValidMatrix(float* m) {
 }
 
 void* ScannerThread(void*) {
+    LOGI("Thread iniciada. Verificando Root...");
+    if (getuid() != 0) {
+        LOGE("SEM ROOT! O app nao e superusuario. O KernelSU bloqueou.");
+    } else {
+        LOGI("App tem ROOT (uid=0).");
+    }
+
     while (g_running) {
-        int pid = get_pid("com.dts.freefireth");
+        int pid = get_pid();
         if (pid != -1) {
+            LOGI("Free Fire encontrado no PID: %d. Lendo mapas...", pid);
             std::ifstream maps("/proc/" + std::to_string(pid) + "/maps");
             std::string line;
+            bool read_success = false;
             while (std::getline(maps, line)) {
                 if (line.find("rw-p") == std::string::npos) continue;
                 uintptr_t start, end;
@@ -83,7 +95,10 @@ void* ScannerThread(void*) {
                 size_t size = end - start;
                 if (size > 50 * 1024 * 1024) continue;
                 std::vector<char> buffer(size);
-                if (!ReadMem(pid, start, buffer.data(), size)) continue;
+                if (!ReadMem(pid, start, buffer.data(), size)) {
+                    continue; // Falha ao ler (sem root)
+                }
+                read_success = true;
                 for (size_t i = 0; i <= size - 64; i += 4) {
                     float* m = (float*)&buffer[i];
                     if (IsValidMatrix(m)) {
@@ -93,8 +108,9 @@ void* ScannerThread(void*) {
                     }
                 }
             }
+            if (!read_success) LOGE("Falha ao ler a memoria. Falta de root!");
             found:
-            sleep(3);
+            sleep(5);
         }
         sleep(1);
     }
@@ -103,7 +119,7 @@ void* ScannerThread(void*) {
 
 extern "C" JNIEXPORT void JNICALL
 Java_com_cheat_overlay_OverlayService_StartCheat(JNIEnv*, jobject) {
-    LOGI("Iniciando Engine C++...");
+    LOGI("JNI StartCheat chamado.");
     g_running = true;
     pthread_t thread;
     pthread_create(&thread, nullptr, ScannerThread, nullptr);
