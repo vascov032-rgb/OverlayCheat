@@ -21,6 +21,7 @@ public class OverlayService extends Service {
     static { System.loadLibrary("cheat"); }
 
     public native void StartCheat();
+    public native float[] GetESPBox();
 
     public static boolean aimbot = false;
     public static boolean esp_box = false;
@@ -36,7 +37,6 @@ public class OverlayService extends Service {
 
         createESP();
         createMenu();
-
         StartCheat();
     }
 
@@ -45,7 +45,7 @@ public class OverlayService extends Service {
             private Paint boxPaint = new Paint();
             {
                 boxPaint.setStyle(Paint.Style.STROKE);
-                boxPaint.setStrokeWidth(4);
+                boxPaint.setStrokeWidth(5);
                 boxPaint.setColor(Color.GREEN);
             }
 
@@ -53,21 +53,20 @@ public class OverlayService extends Service {
             protected void onDraw(Canvas canvas) {
                 super.onDraw(canvas);
                 if (esp_box) {
-                    canvas.drawRect(getWidth() / 2f - 150, getHeight() / 2f - 250, getWidth() / 2f + 150, getHeight() / 2f + 250, boxPaint);
+                    float[] box = GetESPBox(); // Pede a posição pro C++
+                    if (box[0] != -1) { // Se estiver na tela
+                        canvas.drawRect(box[0], box[1], box[0] + box[2], box[1] + box[3], boxPaint);
+                    }
                 }
-                // Força o redesenho constante
-                invalidate();
+                invalidate(); // Atualiza a 60 FPS
             }
         };
 
         int layoutType = android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O
-                ? WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
-                : WindowManager.LayoutParams.TYPE_PHONE;
+                ? WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY : WindowManager.LayoutParams.TYPE_PHONE;
 
-        // FLAG_NOT_TOUCHABLE e FLAG_NOT_FOCUSABLE garantem que o View não pegue toque algum.
         WindowManager.LayoutParams params = new WindowManager.LayoutParams(
-                WindowManager.LayoutParams.MATCH_PARENT,
-                WindowManager.LayoutParams.MATCH_PARENT,
+                WindowManager.LayoutParams.MATCH_PARENT, WindowManager.LayoutParams.MATCH_PARENT,
                 layoutType,
                 WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE |
                 WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE |
@@ -101,7 +100,7 @@ public class OverlayService extends Service {
         menuView.addView(swAimbot);
 
         Switch swEsp = new Switch(this);
-        swEsp.setText("ESP Caixa");
+        swEsp.setText("ESP Caixa (Teste)");
         swEsp.setTextColor(Color.WHITE);
         swEsp.setOnCheckedChangeListener((v, c) -> esp_box = c);
         menuView.addView(swEsp);
@@ -112,34 +111,26 @@ public class OverlayService extends Service {
         menuView.addView(btnClose);
 
         int layoutType = android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O
-                ? WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
-                : WindowManager.LayoutParams.TYPE_PHONE;
+                ? WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY : WindowManager.LayoutParams.TYPE_PHONE;
 
-        // Menu flutuante, mas não foca a tela inteira.
         WindowManager.LayoutParams params = new WindowManager.LayoutParams(
-                WindowManager.LayoutParams.WRAP_CONTENT,
-                WindowManager.LayoutParams.WRAP_CONTENT,
+                WindowManager.LayoutParams.WRAP_CONTENT, WindowManager.LayoutParams.WRAP_CONTENT,
                 layoutType,
-                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE |
-                WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE | WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
                 PixelFormat.TRANSLUCENT);
 
         params.gravity = Gravity.TOP | Gravity.START;
-        params.x = 100;
-        params.y = 200;
+        params.x = 100; params.y = 200;
 
         menuView.setOnTouchListener(new View.OnTouchListener() {
             private int initialX, initialY;
             private float initialTouchX, initialTouchY;
-
             @Override
             public boolean onTouch(View v, MotionEvent event) {
                 switch (event.getAction()) {
                     case MotionEvent.ACTION_DOWN:
-                        initialX = params.x;
-                        initialY = params.y;
-                        initialTouchX = event.getRawX();
-                        initialTouchY = event.getRawY();
+                        initialX = params.x; initialY = params.y;
+                        initialTouchX = event.getRawX(); initialTouchY = event.getRawY();
                         return true;
                     case MotionEvent.ACTION_MOVE:
                         params.x = initialX + (int) (event.getRawX() - initialTouchX);
@@ -150,7 +141,6 @@ public class OverlayService extends Service {
                 return false;
             }
         });
-
         windowManager.addView(menuView, params);
     }
 
