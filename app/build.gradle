@@ -29,4 +29,18 @@ android {
             version "3.22.1"
         }
     }
+    
+    // Isso copia o executável C++ para os assets do APK
+    sourceSets {
+        main {
+            assets.srcDirs = ['src/main/assets']
+        }
+    }
 }
+
+// Tarefa para copiar o binário compilado para a pasta assets
+task copyDaemon(type: Copy) {
+    from 'build/intermediates/cxx/Debug/*/obj/arm64-v8a/ff_daemon'
+    into 'src/main/assets'
+}
+preBuild.dependsOn copyDaemon
