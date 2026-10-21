@@ -16,20 +16,15 @@ import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.Switch;
 import android.widget.TextView;
+import java.io.BufferedReader;
+import java.io.FileReader;
 
 public class OverlayService extends Service {
-    static { System.loadLibrary("cheat"); }
-
-    public native void StartCheat();
-    public native float[] GetESPBox();
-
-    public static boolean aimbot = false;
     public static boolean esp_box = false;
 
     private WindowManager windowManager;
     private View espView;
     private LinearLayout menuView;
-    private TextView statusText;
 
     @Override
     public void onCreate() {
@@ -37,7 +32,6 @@ public class OverlayService extends Service {
         windowManager = (WindowManager) getSystemService(WINDOW_SERVICE);
         createESP();
         createMenu();
-        StartCheat();
     }
 
     private void createESP() {
@@ -45,7 +39,7 @@ public class OverlayService extends Service {
             private Paint boxPaint = new Paint();
             {
                 boxPaint.setStyle(Paint.Style.STROKE);
-                boxPaint.setStrokeWidth(8);
+                boxPaint.setStrokeWidth(6);
                 boxPaint.setColor(Color.GREEN);
             }
 
@@ -53,15 +47,22 @@ public class OverlayService extends Service {
             protected void onDraw(Canvas canvas) {
                 super.onDraw(canvas);
                 if (esp_box) {
-                    float[] box = GetESPBox();
-                    canvas.drawRect(box[0], box[1], box[0] + box[2], box[1] + box[3], boxPaint);
-                    if (statusText != null) {
-                        statusText.setText("X: " + box[0] + " Y: " + box[1]);
-                    }
-                } else {
-                    if (statusText != null) {
-                        statusText.setText("ESP DESLIGADO");
-                    }
+                    try {
+                        // Le as coordenadas que o Daemon do Termux calculou
+                        BufferedReader br = new BufferedReader(new FileReader("/sdcard/esp_coords.txt"));
+                        String line = br.readLine();
+                        br.close();
+                        if (line != null) {
+                            String[] parts = line.split(" ");
+                            if (parts.length == 4) {
+                                float x = Float.parseFloat(parts[0]);
+                                float y = Float.parseFloat(parts[1]);
+                                float w = Float.parseFloat(parts[2]);
+                                float h = Float.parseFloat(parts[3]);
+                                canvas.drawRect(x, y, x + w, y + h, boxPaint);
+                            }
+                        }
+                    } catch (Exception e) {}
                 }
                 invalidate();
             }
@@ -98,14 +99,8 @@ public class OverlayService extends Service {
         title.setTextSize(22);
         menuView.addView(title);
 
-        statusText = new TextView(this);
-        statusText.setText("ESP DESLIGADO");
-        statusText.setTextColor(Color.WHITE);
-        statusText.setTextSize(16);
-        menuView.addView(statusText);
-
         Switch swEsp = new Switch(this);
-        swEsp.setText("LIGAR ESP AGORA");
+        swEsp.setText("ESP Caixa Real");
         swEsp.setTextColor(Color.WHITE);
         swEsp.setOnCheckedChangeListener((v, c) -> esp_box = c);
         menuView.addView(swEsp);
