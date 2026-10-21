@@ -21,6 +21,7 @@ public class OverlayService extends Service {
     static { System.loadLibrary("cheat"); }
 
     public native void StartCheat();
+    public native float[] GetESPBox();
 
     public static boolean aimbot = false;
     public static boolean esp_box = false;
@@ -43,7 +44,7 @@ public class OverlayService extends Service {
             private Paint boxPaint = new Paint();
             {
                 boxPaint.setStyle(Paint.Style.STROKE);
-                boxPaint.setStrokeWidth(8); // Linha mais grossa pra você ver bem
+                boxPaint.setStrokeWidth(6);
                 boxPaint.setColor(Color.GREEN);
             }
 
@@ -51,12 +52,12 @@ public class OverlayService extends Service {
             protected void onDraw(Canvas canvas) {
                 super.onDraw(canvas);
                 if (esp_box) {
-                    // DESENHANDO UMA CAIXA FIXA NO MEIO DA TELA (TESTE)
-                    float cx = getWidth() / 2.0f;
-                    float cy = getHeight() / 2.0f;
-                    canvas.drawRect(cx - 100, cy - 200, cx + 100, cy + 200, boxPaint);
+                    float[] box = GetESPBox();
+                    if (box[0] != -1) {
+                        canvas.drawRect(box[0], box[1], box[0] + box[2], box[1] + box[3], boxPaint);
+                    }
                 }
-                invalidate(); // Atualiza a tela
+                invalidate();
             }
         };
 
@@ -98,7 +99,7 @@ public class OverlayService extends Service {
         menuView.addView(swAimbot);
 
         Switch swEsp = new Switch(this);
-        swEsp.setText("ESP Caixa (Liga ai)");
+        swEsp.setText("ESP Caixa Real");
         swEsp.setTextColor(Color.WHITE);
         swEsp.setOnCheckedChangeListener((v, c) -> esp_box = c);
         menuView.addView(swEsp);

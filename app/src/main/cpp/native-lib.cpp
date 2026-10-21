@@ -53,6 +53,16 @@ bool ReadMem(int pid, uintptr_t addr, void* buffer, size_t size) {
     return process_vm_readv(pid, &local, 1, &remote, 1, 0) == size;
 }
 
+bool WorldToScreen(float x, float y, float z, float* matrix, int screen_w, int screen_h, float& out_x, float& out_y) {
+    float w = matrix[3] * x + matrix[7] * y + matrix[11] * z + matrix[15];
+    if (w < 0.01f) return false;
+    float sx = matrix[0] * x + matrix[4] * y + matrix[8] * z + matrix[12];
+    float sy = matrix[1] * x + matrix[5] * y + matrix[9] * z + matrix[13];
+    out_x = (screen_w / 2.0f) * (1.0f + sx / w);
+    out_y = (screen_h / 2.0f) * (1.0f - sy / w);
+    return true;
+}
+
 void* ScannerThread(void*) {
     while (g_running) {
         int pid = get_pid();
@@ -60,8 +70,8 @@ void* ScannerThread(void*) {
             std::ifstream maps("/proc/" + std::to_string(pid) + "/maps");
             std::string line;
             uintptr_t view_matrix = 0;
+            float cam_x = 0, cam_y = 0, cam_z = 0;
 
-            // Procura a Câmera (ViewMatrix)
             while (std::getline(maps, line)) {
                 if (line.find("rw-p") == std::string::npos) continue;
                 uintptr_t start, end;
@@ -79,6 +89,7 @@ void* ScannerThread(void*) {
                             if (std::abs(len0 - 1.0f) < 0.05f && std::abs(len1 - 1.0f) < 0.05f) {
                                 if (std::abs(m[15] - 1.0f) < 0.05f && std::abs(m[12]) > 1.0f && std::abs(m[12]) < 3000.0f) {
                                     view_matrix = addr + i;
+                                    cam_x = m[12]; cam_y = m[13]; cam_z = m[14];
                                     break;
                                 }
                             }
@@ -89,20 +100,44 @@ void* ScannerThread(void*) {
                 if (view_matrix) break;
             }
 
-            // Se achou a câmera, desenha a caixa no centro (vai acompanhar o movimento da tela)
+            uintptr_t player_pos = 0;
             if (view_matrix) {
-                // Deixa a caixa com um tamanho fixo no centro da tela
-                outX = (1080 / 2.0f) - 50;
-                outY = (2400 / 2.0f) - 100;
-                outW = 100;
-                outH = 200;
+                uintptr_t search_start = view_matrix - 0x5000;
+                std::vector<char> buffer(0xA000);
+                if (ReadMem(pid, search_start, buffer.data(), 0xA000)) {
+                    for (size_t i = 0; i <= 0xA000 - 12; i += 4) {
+                        float* f = (float*)&buffer[i];
+                        if (std::abs(f[0] - cam_x) < 0.5f && std::abs(f[1] - cam_y) < 0.5f && std::abs(f[2] - cam_z) < 0.5f) {
+                            player_pos = search_start + i;
+                            break;
+                        }
+                    }
+                }
+            }
+
+            if (player_pos) {
+                float matrix[16];
+                if (ReadMem(pid, view_matrix, matrix, sizeof(matrix))) {
+                    float p_x, p_y, p_z;
+                    if (ReadMem(pid, player_pos, &p_x, 4) && ReadMem(pid, player_pos + 4, &p_y, 4) && ReadMem(pid, player_pos + 8, &p_z, 4)) {
+                        float sx, sy;
+                        if (WorldToScreen(p_x, p_y - 1.0f, p_z, matrix, 1080, 2400, sx, sy)) {
+                            outX = sx - 40;
+                            outY = sy - 100;
+                            outW = 80;
+                            outH = 180;
+                        } else {
+                            outX = -1;
+                        }
+                    }
+                }
             } else {
-                outX = -1; // Se não achar a câmera, esconde a caixa
+                outX = -1;
             }
         } else {
             outX = -1;
         }
-        usleep(30000); // 30 FPS
+        usleep(33000);
     }
     return nullptr;
 }
