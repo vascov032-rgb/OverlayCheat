@@ -1,3 +1,4 @@
+#define _GNU_SOURCE
 #include <unistd.h>
 #include <iostream>
 #include <fstream>
@@ -56,24 +57,20 @@ bool IsValidMatrix(float* m) {
 }
 
 int main() {
-    // Roda para sempre como root
     while (true) {
         int pid = get_pid();
         if (pid != -1) {
             std::ifstream maps("/proc/" + std::to_string(pid) + "/maps");
             std::string line;
             uintptr_t found_matrix = 0;
-            
             while (std::getline(maps, line)) {
                 if (line.find("rw-p") == std::string::npos) continue;
                 uintptr_t start, end;
                 sscanf(line.c_str(), "%lx-%lx", &start, &end);
                 size_t size = end - start;
                 if (size > 50 * 1024 * 1024) continue;
-                
                 std::vector<char> buffer(size);
                 if (!ReadMem(pid, start, buffer.data(), size)) continue;
-                
                 for (size_t i = 0; i <= size - 64; i += 4) {
                     float* m = (float*)&buffer[i];
                     if (IsValidMatrix(m)) {
@@ -83,14 +80,9 @@ int main() {
                 }
                 if (found_matrix) break;
             }
-            
-            // Salva o endereço num arquivo que o App vai ler
             std::ofstream out("/data/local/tmp/ff_matrix.txt");
-            if (found_matrix) {
-                out << "0x" << std::hex << found_matrix;
-            } else {
-                out << "0x0";
-            }
+            if (found_matrix) out << "0x" << std::hex << found_matrix;
+            else out << "0x0";
             out.close();
         }
         sleep(3);

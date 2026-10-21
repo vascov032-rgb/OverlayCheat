@@ -13,13 +13,6 @@ import java.io.InputStream;
 import java.io.DataOutputStream;
 
 public class OverlayService extends Service {
-    static {
-        System.loadLibrary("cheat");
-    }
-
-    public native void StartCheat();
-    public native void StopCheat();
-
     private WindowManager windowManager;
     private SurfaceView surfaceView;
 
@@ -27,13 +20,16 @@ public class OverlayService extends Service {
     public void onCreate() {
         super.onCreate();
         
-        // Extrai o daemon e roda como root
+        // Extrai o daemon da pasta lib do Android e roda via SU
         new Thread(() -> {
             try {
-                File daemonFile = new File("/data/local/tmp/ff_daemon");
-                if (!daemonFile.exists()) {
-                    InputStream is = getAssets().open("ff_daemon");
-                    FileOutputStream fos = new FileOutputStream(daemonFile);
+                // O AGP empacota o executável como libff_daemon.so
+                File daemonSrc = new File(getApplicationInfo().nativeLibraryDir, "libff_daemon.so");
+                File daemonDst = new File("/data/local/tmp/ff_daemon");
+                
+                if (daemonSrc.exists()) {
+                    InputStream is = new java.io.FileInputStream(daemonSrc);
+                    FileOutputStream fos = new FileOutputStream(daemonDst);
                     byte[] buffer = new byte[1024];
                     int length;
                     while ((length = is.read(buffer)) > 0) {
@@ -46,7 +42,7 @@ public class OverlayService extends Service {
                 Process su = Runtime.getRuntime().exec("su");
                 DataOutputStream os = new DataOutputStream(su.getOutputStream());
                 os.writeBytes("chmod 755 /data/local/tmp/ff_daemon\n");
-                os.writeBytes("/data/local/tmp/ff_daemon &\n"); // Roda em background
+                os.writeBytes("/data/local/tmp/ff_daemon > /dev/null 2>&1 &\n");
                 os.flush();
             } catch (Exception e) {
                 e.printStackTrace();
@@ -70,7 +66,7 @@ public class OverlayService extends Service {
         params.gravity = Gravity.TOP | Gravity.START;
         windowManager.addView(surfaceView, params);
     }
-    
+
     @Override
     public void onDestroy() {
         super.onDestroy();
