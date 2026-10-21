@@ -29,6 +29,7 @@ public class OverlayService extends Service {
     private WindowManager windowManager;
     private View espView;
     private LinearLayout menuView;
+    private TextView statusText;
 
     @Override
     public void onCreate() {
@@ -44,7 +45,7 @@ public class OverlayService extends Service {
             private Paint boxPaint = new Paint();
             {
                 boxPaint.setStyle(Paint.Style.STROKE);
-                boxPaint.setStrokeWidth(6);
+                boxPaint.setStrokeWidth(8);
                 boxPaint.setColor(Color.GREEN);
             }
 
@@ -53,8 +54,13 @@ public class OverlayService extends Service {
                 super.onDraw(canvas);
                 if (esp_box) {
                     float[] box = GetESPBox();
-                    if (box[0] != -1) {
-                        canvas.drawRect(box[0], box[1], box[0] + box[2], box[1] + box[3], boxPaint);
+                    canvas.drawRect(box[0], box[1], box[0] + box[2], box[1] + box[3], boxPaint);
+                    if (statusText != null) {
+                        statusText.setText("X: " + box[0] + " Y: " + box[1]);
+                    }
+                } else {
+                    if (statusText != null) {
+                        statusText.setText("ESP DESLIGADO");
                     }
                 }
                 invalidate();
@@ -92,14 +98,14 @@ public class OverlayService extends Service {
         title.setTextSize(22);
         menuView.addView(title);
 
-        Switch swAimbot = new Switch(this);
-        swAimbot.setText("Aimbot HS");
-        swAimbot.setTextColor(Color.WHITE);
-        swAimbot.setOnCheckedChangeListener((v, c) -> aimbot = c);
-        menuView.addView(swAimbot);
+        statusText = new TextView(this);
+        statusText.setText("ESP DESLIGADO");
+        statusText.setTextColor(Color.WHITE);
+        statusText.setTextSize(16);
+        menuView.addView(statusText);
 
         Switch swEsp = new Switch(this);
-        swEsp.setText("ESP Caixa Real");
+        swEsp.setText("LIGAR ESP AGORA");
         swEsp.setTextColor(Color.WHITE);
         swEsp.setOnCheckedChangeListener((v, c) -> esp_box = c);
         menuView.addView(swEsp);
