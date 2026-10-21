@@ -1,4 +1,3 @@
-#define _GNU_SOURCE
 #include <jni.h>
 #include <android/log.h>
 #include <unistd.h>
@@ -13,6 +12,7 @@
 
 #define LOG_TAG "FF_OVERLAY"
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
+#define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
 
 bool g_running = true;
 
@@ -50,14 +50,15 @@ int get_pid() {
 void* ScannerThread(void*) {
     LOGI("Thread iniciada. Verificando Root...");
     if (getuid() != 0) {
-        LOGE("SEM ROOT!");
+        LOGE("SEM ROOT! O app nao e superusuario.");
+    } else {
+        LOGI("App tem ROOT (uid=0).");
     }
 
     while (g_running) {
         int pid = get_pid();
         if (pid != -1) {
-            // Aqui a gente coloca a lógica de scan segura que já fizemos
-            // e atualiza as variáveis para o ESP desenhar
+            // Logica de scan segura
             sleep(1);
         }
         sleep(1);
