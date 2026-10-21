@@ -6,20 +6,32 @@ import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.PixelFormat;
+import android.graphics.drawable.GradientDrawable;
 import android.os.IBinder;
 import android.view.Gravity;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
+import android.view.View;
 import android.view.WindowManager;
+import android.widget.Button;
+import android.widget.LinearLayout;
+import android.widget.Switch;
+import android.widget.TextView;
 
 public class OverlayService extends Service implements SurfaceHolder.Callback {
     static { System.loadLibrary("cheat"); }
 
     public native void StartCheat();
     public native String GetCheatStatus();
+    
+    // Variáveis que o C++ vai ler
+    public static boolean aimbot = false;
+    public static boolean esp = false;
+    public static boolean hs = false; // Mira na cabeça
 
     private WindowManager windowManager;
-    private SurfaceView surfaceView;
+    private SurfaceView espView;
+    private LinearLayout menuView;
     private RenderThread renderThread;
 
     @Override
@@ -27,35 +39,130 @@ public class OverlayService extends Service implements SurfaceHolder.Callback {
         super.onCreate();
         windowManager = (WindowManager) getSystemService(WINDOW_SERVICE);
         
-        surfaceView = new SurfaceView(this);
-        surfaceView.setZOrderOnTop(true);
-        surfaceView.getHolder().setFormat(PixelFormat.TRANSLUCENT);
-        surfaceView.getHolder().addCallback(this);
+        createMenu();
+        createESP();
+        
+        StartCheat();
+    }
+
+    private void createMenu() {
+        menuView = new LinearLayout(this);
+        menuView.setOrientation(LinearLayout.VERTICAL);
+        menuView.setPadding(30, 30, 30, 30);
+        
+        GradientDrawable shape = new GradientDrawable();
+        shape.setColor(Color.parseColor("#DD111111")); // Fundo escuro
+        shape.setCornerRadius(20);
+        shape.setStroke(3, Color.RED);
+        menuView.setBackground(shape);
+
+        TextView title = new TextView(this);
+        title.setText("V CARRIER - EXTERNAL");
+        title.setTextColor(Color.RED);
+        title.setTextSize(20);
+        menuView.addView(title);
+
+        Switch swAimbot = new Switch(this);
+        swAimbot.setText("Aimbot");
+        swAimbot.setTextColor(Color.WHITE);
+        swAimbot.setOnCheckedChangeListener((v, c) -> aimbot = c);
+        menuView.addView(swAimbot);
+
+        Switch swHS = new Switch(this);
+        swHS.setText("Mira na Cabeça");
+        swHS.setTextColor(Color.WHITE);
+        swHS.setOnCheckedChangeListener((v, c) -> hs = c);
+        menuView.addView(swHS);
+
+        Switch swEsp = new Switch(this);
+        swEsp.setText("ESP Caixa");
+        swEsp.setTextColor(Color.WHITE);
+        swEsp.setOnCheckedChangeListener((v, c) -> esp = c);
+        menuView.addView(swEsp);
+
+        Button btnClose = new Button(this);
+        btnClose.setText("FECHAR");
+        btnClose.setOnClickListener(v -> stopSelf());
+        menuView.addView(btnClose);
+
+        int layoutType;
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+            layoutType = WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY;
+        } else {
+            layoutType = WindowManager.LayoutParams.TYPE_PHONE;
+        }
+
+        WindowManager.LayoutParams params = new WindowManager.LayoutParams(
+                WindowManager.LayoutParams.WRAP_CONTENT,
+                WindowManager.LayoutParams.WRAP_CONTENT,
+                layoutType,
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
+                PixelFormat.TRANSLUCENT);
+
+        params.gravity = Gravity.TOP | Gravity.START;
+        params.x = 100;
+        params.y = 100;
+
+        // Torna o menu arrastável
+        menuView.setOnTouchListener(new View.OnTouchListener() {
+            private int initialX, initialY;
+            private float initialTouchX, initialTouchY;
+            @Override
+            public boolean onTouch(View v, android.view.MotionEvent event) {
+                switch (event.getAction()) {
+                    case android.view.MotionEvent.ACTION_DOWN:
+                        initialX = params.x;
+                        initialY = params.y;
+                        initialTouchX = event.getRawX();
+                        initialTouchY = event.getRawY();
+                        return true;
+                    case android.view.MotionEvent.ACTION_MOVE:
+                        params.x = initialX + (int) (event.getRawX() - initialTouchX);
+                        params.y = initialY + (int) (event.getRawY() - initialTouchY);
+                        windowManager.updateViewLayout(menuView, params);
+                        return true;
+                }
+                return false;
+            }
+        });
+
+        windowManager.addView(menuView, params);
+    }
+
+    private void createESP() {
+        espView = new SurfaceView(this);
+        espView.setZOrderOnTop(true);
+        espView.getHolder().setFormat(PixelFormat.TRANSLUCENT);
+        espView.getHolder().addCallback(this);
+
+        int layoutType;
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+            layoutType = WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY;
+        } else {
+            layoutType = WindowManager.LayoutParams.TYPE_PHONE;
+        }
 
         WindowManager.LayoutParams params = new WindowManager.LayoutParams(
                 WindowManager.LayoutParams.MATCH_PARENT,
                 WindowManager.LayoutParams.MATCH_PARENT,
-                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+                layoutType,
                 WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE |
-                WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE |
+                WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE | // Deixa os toques passarem pro jogo
                 WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
                 PixelFormat.TRANSLUCENT);
 
-        params.gravity = Gravity.TOP | Gravity.START;
-        windowManager.addView(surfaceView, params);
-
-        StartCheat();
+        windowManager.addView(espView, params);
     }
 
     @Override
     public void surfaceCreated(SurfaceHolder holder) {
         renderThread = new RenderThread(holder);
+        renderThread.running = true;
         renderThread.start();
     }
 
     @Override
     public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) {}
-
     @Override
     public void surfaceDestroyed(SurfaceHolder holder) {
         if (renderThread != null) renderThread.running = false;
@@ -71,43 +178,19 @@ public class OverlayService extends Service implements SurfaceHolder.Callback {
         public void run() {
             Paint paint = new Paint();
             paint.setAntiAlias(true);
-            paint.setColor(Color.RED);
-            paint.setTextSize(50);
-
-            Paint boxPaint = new Paint();
-            boxPaint.setStyle(Paint.Style.STROKE);
-            boxPaint.setStrokeWidth(3);
-            boxPaint.setColor(Color.GREEN);
+            paint.setColor(Color.GREEN);
+            paint.setStrokeWidth(5);
+            paint.setStyle(Paint.Style.STROKE);
 
             while (running) {
                 Canvas canvas = holder.lockCanvas();
                 if (canvas != null) {
                     canvas.drawColor(Color.TRANSPARENT, android.graphics.PorterDuff.Mode.CLEAR);
-                    
-                    // Desenha o FOV (Aimbot)
-                    paint.setStyle(Paint.Style.STROKE);
-                    paint.setColor(Color.RED);
-                    canvas.drawCircle(canvas.getWidth() / 2f, canvas.getHeight() / 2f, 300, paint);
-
-                    // Desenha o Painel
-                    paint.setStyle(Paint.Style.FILL);
-                    paint.setColor(Color.argb(200, 20, 20, 20)); // Fundo preto semi-transparente
-                    canvas.drawRect(100, 200, 700, 800, paint);
-                    
-                    paint.setColor(Color.RED);
-                    paint.setTextSize(60);
-                    canvas.drawText("V CARRIER - PANEL", 120, 260, paint);
-                    
-                    paint.setColor(Color.WHITE);
-                    paint.setTextSize(40);
-                    canvas.drawText("Status: " + GetCheatStatus(), 120, 350, paint);
-                    canvas.drawText("Aimbot: ON (HS: 100%)", 120, 420, paint);
-                    canvas.drawText("ESP Box: ON", 120, 490, paint);
-                    canvas.drawText("ESP Skeleton: ON", 120, 560, paint);
-
-                    // Exemplo de ESP Box (Desenhado no meio da tela pra teste)
-                    canvas.drawRect(canvas.getWidth() / 2f - 100, canvas.getHeight() / 2f - 200, canvas.getWidth() / 2f + 100, canvas.getHeight() / 2f + 200, boxPaint);
-
+                    if (esp) {
+                        // Aqui a gente vai desenhar os inimigos no futuro
+                        // Exemplo: Desenhar uma caixa no centro pra testar
+                        canvas.drawRect(canvas.getWidth() / 2f - 100, canvas.getHeight() / 2f - 200, canvas.getWidth() / 2f + 100, canvas.getHeight() / 2f + 200, paint);
+                    }
                     holder.unlockCanvasAndPost(canvas);
                 }
                 try { Thread.sleep(16); } catch (Exception e) {}
@@ -118,7 +201,8 @@ public class OverlayService extends Service implements SurfaceHolder.Callback {
     @Override
     public void onDestroy() {
         super.onDestroy();
-        if (surfaceView != null) windowManager.removeView(surfaceView);
+        if (menuView != null) windowManager.removeView(menuView);
+        if (espView != null) windowManager.removeView(espView);
     }
 
     @Override
