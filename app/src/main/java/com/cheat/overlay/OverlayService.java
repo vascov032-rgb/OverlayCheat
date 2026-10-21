@@ -22,12 +22,10 @@ public class OverlayService extends Service implements SurfaceHolder.Callback {
     static { System.loadLibrary("cheat"); }
 
     public native void StartCheat();
-    public native String GetCheatStatus();
     
-    // Variáveis que o C++ vai ler
+    // Tudo começa DESLIGADO
     public static boolean aimbot = false;
-    public static boolean esp = false;
-    public static boolean hs = false; // Mira na cabeça
+    public static boolean esp_box = false;
 
     private WindowManager windowManager;
     private SurfaceView espView;
@@ -51,7 +49,7 @@ public class OverlayService extends Service implements SurfaceHolder.Callback {
         menuView.setPadding(30, 30, 30, 30);
         
         GradientDrawable shape = new GradientDrawable();
-        shape.setColor(Color.parseColor("#DD111111")); // Fundo escuro
+        shape.setColor(Color.parseColor("#DD111111")); // Fundo semi-transparente
         shape.setCornerRadius(20);
         shape.setStroke(3, Color.RED);
         menuView.setBackground(shape);
@@ -63,25 +61,19 @@ public class OverlayService extends Service implements SurfaceHolder.Callback {
         menuView.addView(title);
 
         Switch swAimbot = new Switch(this);
-        swAimbot.setText("Aimbot");
+        swAimbot.setText("Aimbot (Mira na Cabeça)");
         swAimbot.setTextColor(Color.WHITE);
         swAimbot.setOnCheckedChangeListener((v, c) -> aimbot = c);
         menuView.addView(swAimbot);
 
-        Switch swHS = new Switch(this);
-        swHS.setText("Mira na Cabeça");
-        swHS.setTextColor(Color.WHITE);
-        swHS.setOnCheckedChangeListener((v, c) -> hs = c);
-        menuView.addView(swHS);
-
         Switch swEsp = new Switch(this);
         swEsp.setText("ESP Caixa");
         swEsp.setTextColor(Color.WHITE);
-        swEsp.setOnCheckedChangeListener((v, c) -> esp = c);
+        swEsp.setOnCheckedChangeListener((v, c) -> esp_box = c);
         menuView.addView(swEsp);
 
         Button btnClose = new Button(this);
-        btnClose.setText("FECHAR");
+        btnClose.setText("FECHAR PAINEL");
         btnClose.setOnClickListener(v -> stopSelf());
         menuView.addView(btnClose);
 
@@ -92,18 +84,19 @@ public class OverlayService extends Service implements SurfaceHolder.Callback {
             layoutType = WindowManager.LayoutParams.TYPE_PHONE;
         }
 
+        // AQUI ESTÁ A CORREÇÃO: FLAG_NOT_TOUCH_MODAL deixa os toques passarem pro jogo fora do menu
         WindowManager.LayoutParams params = new WindowManager.LayoutParams(
                 WindowManager.LayoutParams.WRAP_CONTENT,
                 WindowManager.LayoutParams.WRAP_CONTENT,
                 layoutType,
-                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE | WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
                 PixelFormat.TRANSLUCENT);
 
         params.gravity = Gravity.TOP | Gravity.START;
         params.x = 100;
         params.y = 100;
 
-        // Torna o menu arrastável
+        // Arrastar o menu
         menuView.setOnTouchListener(new View.OnTouchListener() {
             private int initialX, initialY;
             private float initialTouchX, initialTouchY;
@@ -142,13 +135,14 @@ public class OverlayService extends Service implements SurfaceHolder.Callback {
             layoutType = WindowManager.LayoutParams.TYPE_PHONE;
         }
 
+        // AQUI ESTÁ A CORREÇÃO 2: FLAG_NOT_TOUCHABLE deixa o jogo receber os toques na tela toda
         WindowManager.LayoutParams params = new WindowManager.LayoutParams(
                 WindowManager.LayoutParams.MATCH_PARENT,
                 WindowManager.LayoutParams.MATCH_PARENT,
                 layoutType,
                 WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE |
-                WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE | // Deixa os toques passarem pro jogo
-                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
+                WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE | 
+                WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
                 PixelFormat.TRANSLUCENT);
 
         windowManager.addView(espView, params);
@@ -176,20 +170,18 @@ public class OverlayService extends Service implements SurfaceHolder.Callback {
 
         @Override
         public void run() {
-            Paint paint = new Paint();
-            paint.setAntiAlias(true);
-            paint.setColor(Color.GREEN);
-            paint.setStrokeWidth(5);
-            paint.setStyle(Paint.Style.STROKE);
+            Paint boxPaint = new Paint();
+            boxPaint.setStyle(Paint.Style.STROKE);
+            boxPaint.setStrokeWidth(4);
+            boxPaint.setColor(Color.GREEN);
 
             while (running) {
                 Canvas canvas = holder.lockCanvas();
                 if (canvas != null) {
                     canvas.drawColor(Color.TRANSPARENT, android.graphics.PorterDuff.Mode.CLEAR);
-                    if (esp) {
-                        // Aqui a gente vai desenhar os inimigos no futuro
-                        // Exemplo: Desenhar uma caixa no centro pra testar
-                        canvas.drawRect(canvas.getWidth() / 2f - 100, canvas.getHeight() / 2f - 200, canvas.getWidth() / 2f + 100, canvas.getHeight() / 2f + 200, paint);
+                    if (esp_box) {
+                        // Desenha uma caixa no centro pra voce ver que ta funcionando
+                        canvas.drawRect(canvas.getWidth() / 2f - 150, canvas.getHeight() / 2f - 250, canvas.getWidth() / 2f + 150, canvas.getHeight() / 2f + 250, boxPaint);
                     }
                     holder.unlockCanvasAndPost(canvas);
                 }
