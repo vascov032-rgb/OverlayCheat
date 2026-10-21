@@ -2,57 +2,35 @@ package com.cheat.overlay;
 
 import android.app.Service;
 import android.content.Intent;
+import android.graphics.Canvas;
+import android.graphics.Color;
+import android.graphics.Paint;
 import android.graphics.PixelFormat;
 import android.os.IBinder;
 import android.view.Gravity;
-import android.view.WindowManager;
+import android.view.SurfaceHolder;
 import android.view.SurfaceView;
-import java.io.File;
-import java.io.FileOutputStream;
-import java.io.InputStream;
-import java.io.DataOutputStream;
+import android.view.WindowManager;
 
-public class OverlayService extends Service {
+public class OverlayService extends Service implements SurfaceHolder.Callback {
+    static { System.loadLibrary("cheat"); }
+
+    public native void StartCheat();
+    public native String GetCheatStatus();
+
     private WindowManager windowManager;
     private SurfaceView surfaceView;
+    private RenderThread renderThread;
 
     @Override
     public void onCreate() {
         super.onCreate();
-        
-        // Extrai o daemon da pasta lib do Android e roda via SU
-        new Thread(() -> {
-            try {
-                // O AGP empacota o executável como libff_daemon.so
-                File daemonSrc = new File(getApplicationInfo().nativeLibraryDir, "libff_daemon.so");
-                File daemonDst = new File("/data/local/tmp/ff_daemon");
-                
-                if (daemonSrc.exists()) {
-                    InputStream is = new java.io.FileInputStream(daemonSrc);
-                    FileOutputStream fos = new FileOutputStream(daemonDst);
-                    byte[] buffer = new byte[1024];
-                    int length;
-                    while ((length = is.read(buffer)) > 0) {
-                        fos.write(buffer, 0, length);
-                    }
-                    fos.close();
-                    is.close();
-                }
-                
-                Process su = Runtime.getRuntime().exec("su");
-                DataOutputStream os = new DataOutputStream(su.getOutputStream());
-                os.writeBytes("chmod 755 /data/local/tmp/ff_daemon\n");
-                os.writeBytes("/data/local/tmp/ff_daemon > /dev/null 2>&1 &\n");
-                os.flush();
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
-        }).start();
-
         windowManager = (WindowManager) getSystemService(WINDOW_SERVICE);
+        
         surfaceView = new SurfaceView(this);
         surfaceView.setZOrderOnTop(true);
         surfaceView.getHolder().setFormat(PixelFormat.TRANSLUCENT);
+        surfaceView.getHolder().addCallback(this);
 
         WindowManager.LayoutParams params = new WindowManager.LayoutParams(
                 WindowManager.LayoutParams.MATCH_PARENT,
@@ -65,6 +43,76 @@ public class OverlayService extends Service {
 
         params.gravity = Gravity.TOP | Gravity.START;
         windowManager.addView(surfaceView, params);
+
+        StartCheat();
+    }
+
+    @Override
+    public void surfaceCreated(SurfaceHolder holder) {
+        renderThread = new RenderThread(holder);
+        renderThread.start();
+    }
+
+    @Override
+    public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) {}
+
+    @Override
+    public void surfaceDestroyed(SurfaceHolder holder) {
+        if (renderThread != null) renderThread.running = false;
+    }
+
+    private class RenderThread extends Thread {
+        private final SurfaceHolder holder;
+        public boolean running = true;
+
+        public RenderThread(SurfaceHolder holder) { this.holder = holder; }
+
+        @Override
+        public void run() {
+            Paint paint = new Paint();
+            paint.setAntiAlias(true);
+            paint.setColor(Color.RED);
+            paint.setTextSize(50);
+
+            Paint boxPaint = new Paint();
+            boxPaint.setStyle(Paint.Style.STROKE);
+            boxPaint.setStrokeWidth(3);
+            boxPaint.setColor(Color.GREEN);
+
+            while (running) {
+                Canvas canvas = holder.lockCanvas();
+                if (canvas != null) {
+                    canvas.drawColor(Color.TRANSPARENT, android.graphics.PorterDuff.Mode.CLEAR);
+                    
+                    // Desenha o FOV (Aimbot)
+                    paint.setStyle(Paint.Style.STROKE);
+                    paint.setColor(Color.RED);
+                    canvas.drawCircle(canvas.getWidth() / 2f, canvas.getHeight() / 2f, 300, paint);
+
+                    // Desenha o Painel
+                    paint.setStyle(Paint.Style.FILL);
+                    paint.setColor(Color.argb(200, 20, 20, 20)); // Fundo preto semi-transparente
+                    canvas.drawRect(100, 200, 700, 800, paint);
+                    
+                    paint.setColor(Color.RED);
+                    paint.setTextSize(60);
+                    canvas.drawText("V CARRIER - PANEL", 120, 260, paint);
+                    
+                    paint.setColor(Color.WHITE);
+                    paint.setTextSize(40);
+                    canvas.drawText("Status: " + GetCheatStatus(), 120, 350, paint);
+                    canvas.drawText("Aimbot: ON (HS: 100%)", 120, 420, paint);
+                    canvas.drawText("ESP Box: ON", 120, 490, paint);
+                    canvas.drawText("ESP Skeleton: ON", 120, 560, paint);
+
+                    // Exemplo de ESP Box (Desenhado no meio da tela pra teste)
+                    canvas.drawRect(canvas.getWidth() / 2f - 100, canvas.getHeight() / 2f - 200, canvas.getWidth() / 2f + 100, canvas.getHeight() / 2f + 200, boxPaint);
+
+                    holder.unlockCanvasAndPost(canvas);
+                }
+                try { Thread.sleep(16); } catch (Exception e) {}
+            }
+        }
     }
 
     @Override

@@ -7,13 +7,11 @@ import android.os.Bundle;
 import android.provider.Settings;
 import android.widget.Toast;
 import java.io.DataOutputStream;
-import java.io.IOException;
 
 public class MainActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        
         if (!Settings.canDrawOverlays(this)) {
             Intent intent = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:" + getPackageName()));
             startActivityForResult(intent, 123);
@@ -29,7 +27,6 @@ public class MainActivity extends Activity {
                 DataOutputStream os = new DataOutputStream(su.getOutputStream());
                 os.writeBytes("id\n");
                 os.flush();
-                // Lê a resposta do KernelSU
                 byte[] buffer = new byte[1024];
                 int read = su.getInputStream().read(buffer);
                 if (read > 0) {
