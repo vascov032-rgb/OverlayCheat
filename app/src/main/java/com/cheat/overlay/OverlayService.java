@@ -21,7 +21,6 @@ public class OverlayService extends Service {
     static { System.loadLibrary("cheat"); }
 
     public native void StartCheat();
-    public native float[] GetESPBox();
 
     public static boolean aimbot = false;
     public static boolean esp_box = false;
@@ -34,7 +33,6 @@ public class OverlayService extends Service {
     public void onCreate() {
         super.onCreate();
         windowManager = (WindowManager) getSystemService(WINDOW_SERVICE);
-
         createESP();
         createMenu();
         StartCheat();
@@ -45,7 +43,7 @@ public class OverlayService extends Service {
             private Paint boxPaint = new Paint();
             {
                 boxPaint.setStyle(Paint.Style.STROKE);
-                boxPaint.setStrokeWidth(5);
+                boxPaint.setStrokeWidth(8); // Linha mais grossa pra você ver bem
                 boxPaint.setColor(Color.GREEN);
             }
 
@@ -53,12 +51,12 @@ public class OverlayService extends Service {
             protected void onDraw(Canvas canvas) {
                 super.onDraw(canvas);
                 if (esp_box) {
-                    float[] box = GetESPBox(); // Pede a posição pro C++
-                    if (box[0] != -1) { // Se estiver na tela
-                        canvas.drawRect(box[0], box[1], box[0] + box[2], box[1] + box[3], boxPaint);
-                    }
+                    // DESENHANDO UMA CAIXA FIXA NO MEIO DA TELA (TESTE)
+                    float cx = getWidth() / 2.0f;
+                    float cy = getHeight() / 2.0f;
+                    canvas.drawRect(cx - 100, cy - 200, cx + 100, cy + 200, boxPaint);
                 }
-                invalidate(); // Atualiza a 60 FPS
+                invalidate(); // Atualiza a tela
             }
         };
 
@@ -100,7 +98,7 @@ public class OverlayService extends Service {
         menuView.addView(swAimbot);
 
         Switch swEsp = new Switch(this);
-        swEsp.setText("ESP Caixa (Teste)");
+        swEsp.setText("ESP Caixa (Liga ai)");
         swEsp.setTextColor(Color.WHITE);
         swEsp.setOnCheckedChangeListener((v, c) -> esp_box = c);
         menuView.addView(swEsp);
